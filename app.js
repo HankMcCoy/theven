@@ -15,19 +15,15 @@ function createBoard() {
 		}
 	}
 
-	// Put player 1's top pieces down
 	for (let col = 2; col < BOARD_SIZE - 2; col++) {
-		board[col % 2][col] = PLAYER_1
+		board[col % 2][col] = PLAYER_2
 	}
-	// Put player 1's bottom pieces down
 	for (let col = 2; col < BOARD_SIZE - 2; col++) {
-		board[BOARD_SIZE - (col % 2 ? 1 : 2)][col] = PLAYER_1
+		board[BOARD_SIZE - (col % 2 ? 1 : 2)][col] = PLAYER_2
 	}
-	// Put player 2's left pieces down
 	for (let row = 2; row < BOARD_SIZE - 2; row++) {
 		board[row][row % 2 ? 0 : 1] = PLAYER_1
 	}
-	// Put player 2's right pieces down
 	for (let row = 2; row < BOARD_SIZE - 2; row++) {
 		board[row][BOARD_SIZE - (row % 2 ? 2 : 1)] = PLAYER_1
 	}
@@ -38,20 +34,17 @@ function isBlack(row, col) {
 	return (row % 2) !== (col % 2)
 }
 
-function render({ board, targetEl, selectedCell, availableMoveCells }) {
+function render({ board, targetEl, selectedCell, isAvailableMove }) {
 	let html = ''
 	const square = ({ isBlack }) => (row, col) => {
 		const token = isBlack ? 'X' : 'O'
 		const isSelected = selectedCell && selectedCell.row === row && selectedCell.col === col
-		const isAvailableMove = availableMoveCells && availableMoveCells
-			.filter(availableMove => availableMove.row === row && availableMove.col === col)
-			.length
 
 		return `
 			<div
 				class="cell ${isBlack ? 'cell--black' : ''}
 					${isSelected ? 'cell--selected' : ''}
-					${isAvailableMove ? 'cell--available' : ''}"
+					${isAvailableMove(row, col) ? 'cell--available' : ''}"
 				data-row="${row}"
 				data-col="${col}"
 			>
@@ -75,11 +68,11 @@ function render({ board, targetEl, selectedCell, availableMoveCells }) {
 	targetEl.innerHTML = html
 }
 
+const isWithinBoard = ({ row, col }) => (
+	row >= 0 && row < BOARD_SIZE &&
+	col >= 0 && col < BOARD_SIZE
+)
 function getAvailableMoveCells(board, selectedRow, selectedCol) {
-	const isWithinBoard = ({ row, col }) => (
-		row >= 0 && row < BOARD_SIZE &&
-		col >= 0 && col < BOARD_SIZE
-	)
 	const isUnoccupied = ({ row, col }) => !board[row][col]
 	const offsets = [[-1, -1], [1, -1], [-1, 1], [1, 1]]
 	const translateOffsetToCell = ([rowOffset, colOffset]) => ({
@@ -96,17 +89,20 @@ function getAvailableMoveCells(board, selectedRow, selectedCol) {
 }
 
 function play() {
-	const board = createBoard()
+	let board = createBoard()
 	const targetEl = document.querySelector('#main')
 	let selectedCell = undefined
-	let availableMoveCells
+	let availableMoveCells = []
 	let curPlayer = PLAYER_1
 
 	const isCurPlayerCell = (row, col) =>
 		(curPlayer === PLAYER_1 && isBlack(row, col)) ||
 		(curPlayer === PLAYER_2 && !isBlack(row, col))
+	const isAvailableMove = (row, col) => {
+		return availableMoveCells.filter(move => move.row === row && move.col === col).length
+	}
 
-	render({ board, targetEl, selectedCell })
+	render({ board, targetEl, isAvailableMove })
 	targetEl.addEventListener('click', (event) => {
 		/*
 		 * Check 4 potentional move squares (-1,-1) (-1,1) (1,1) (-1,-1) for occupation, make unoccupied green highlight
@@ -115,24 +111,68 @@ function play() {
 		 */
 		const row = parseInt(event.target.dataset.row)
 		const col = parseInt(event.target.dataset.col)
-		if (isCurPlayerCell(row, col) && board[row][col]) {
-			selectedCell = {
-				row,
-				col,
-			}
+		if (isCurPlayerCell(row, col)) {
+			if (board[row][col]) {
+				selectedCell = {
+					row,
+					col,
+				}
 
-			availableMoveCells = getAvailableMoveCells(board, row, col)
+				availableMoveCells = getAvailableMoveCells(board, row, col)
+			} else {
+				if (isAvailableMove(row, col)) {
+					board = makeMove({ board, row, col, curPlayer, selectedCell })
+					curPlayer = curPlayer === PLAYER_1 ? PLAYER_2 : PLAYER_1
+				}
+
+				selectedCell = undefined
+				availableMoveCells = []
+			}
+		} else {
+			selectedCell = undefined
+			availableMoveCells = []
 		}
 
-		render({ board, targetEl, selectedCell, availableMoveCells })
+		render({ board, targetEl, selectedCell, isAvailableMove })
 	})
 
 	window.board = board
 }
 
-play()
+const get = (val, path) => {
+	let result = val
+	for (var i = 0; i < path.length; i++) {
+		result = result[path[i]]
 
-// Put some pieces down
-//
-// Eventually like… let you click and shit
-//
+		if (!result) {
+			return undefined
+		}
+	}
+
+	return result
+}
+
+function makeMove({ board, row, col, selectedCell, curPlayer }) {
+	// Move the piece
+	board[selectedCell.row][selectedCell.col] = undefined
+	board[row][col] = curPlayer
+
+	// Check for a capture
+	const offsets = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+	offsets.forEach(([rowOffset, colOffset]) => {
+console.log([rowOffset, colOffset])
+		const nextPiece = get(board, [row + rowOffset, col + colOffset])
+console.log('next', nextPiece)
+		const nextNextPiece = get(board, [row + 2 * rowOffset, col + 2 * colOffset])
+console.log('nextNEXT', nextNextPiece)
+
+		if (nextPiece && nextPiece !== curPlayer && nextNextPiece === curPlayer) {
+console.log('CAPTURE')
+			board[row + rowOffset][col + colOffset] = undefined
+		}
+	})
+
+	return board
+}
+
+play()
