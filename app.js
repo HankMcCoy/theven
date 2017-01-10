@@ -73,17 +73,22 @@ const isWithinBoard = ({ row, col }) => (
 	col >= 0 && col < BOARD_SIZE
 )
 function getAvailableMoveCells(board, selectedRow, selectedCol) {
-	const isUnoccupied = ({ row, col }) => !board[row][col]
 	const offsets = [[-1, -1], [1, -1], [-1, 1], [1, 1]]
 	const translateOffsetToCell = ([rowOffset, colOffset]) => ({
 		row: selectedRow + rowOffset,
 		col: selectedCol + colOffset,
 	})
+	const isUnoccupied = ({ row, col }) => !board[row][col]
+	const isNotASelfCapture = ({ row, col }) => (
+		!(get(board, [row - 1, col]) && get(board, [row + 1, col])) &&
+		!(get(board, [row, col - 1]) && get(board, [row, col + 1]))
+	)
 
 	const availableMoveCells = offsets
 		.map(translateOffsetToCell)
 		.filter(isWithinBoard)
 		.filter(isUnoccupied)
+		.filter(isNotASelfCapture)
 
 	return availableMoveCells
 }
