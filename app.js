@@ -79,16 +79,19 @@ function getAvailableMoveCells(board, selectedRow, selectedCol) {
 		col: selectedCol + colOffset,
 	})
 	const isUnoccupied = ({ row, col }) => !board[row][col]
-	const isNotASelfCapture = ({ row, col }) => (
-		!(get(board, [row - 1, col]) && get(board, [row + 1, col])) &&
-		!(get(board, [row, col - 1]) && get(board, [row, col + 1]))
+	const isBetweenPieces = ({ row, col }) => (
+		(get(board, [row - 1, col]) && get(board, [row + 1, col])) ||
+		(get(board, [row, col - 1]) && get(board, [row, col + 1]))
+	)
+	const isASelfCapture = (move) => (
+		isBetweenPieces(move) && !getCaptures(move).length
 	)
 
 	const availableMoveCells = offsets
 		.map(translateOffsetToCell)
 		.filter(isWithinBoard)
 		.filter(isUnoccupied)
-		.filter(isNotASelfCapture)
+		.filter(move => !isASelfCapture(move))
 
 	return availableMoveCells
 }
@@ -157,24 +160,31 @@ const get = (val, path) => {
 	return result
 }
 
+const getCaptures = (move) => {
+	const { row, col } = move
+	const offsets = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+
+	return offsets.reduce((captures, [rowOffset, colOffset]) => {
+		const nextPiece = get(board, [row + rowOffset, col + colOffset])
+		const nextNextPiece = get(board, [row + 2 * rowOffset, col + 2 * colOffset])
+
+		if (nextPiece && nextNextPiece) {
+			captures.push({ row: row + rowOffset, col: col + colOffset })
+		}
+
+		return captures
+	}, [])
+}
+
 function makeMove({ board, row, col, selectedCell, curPlayer }) {
 	// Move the piece
 	board[selectedCell.row][selectedCell.col] = undefined
 	board[row][col] = curPlayer
 
-	// Check for a capture
-	const offsets = [[-1, 0], [1, 0], [0, -1], [0, 1]]
-	offsets.forEach(([rowOffset, colOffset]) => {
-console.log([rowOffset, colOffset])
-		const nextPiece = get(board, [row + rowOffset, col + colOffset])
-console.log('next', nextPiece)
-		const nextNextPiece = get(board, [row + 2 * rowOffset, col + 2 * colOffset])
-console.log('nextNEXT', nextNextPiece)
-
-		if (nextPiece && nextPiece !== curPlayer && nextNextPiece === curPlayer) {
-console.log('CAPTURE')
-			board[row + rowOffset][col + colOffset] = undefined
-		}
+	// Check for captures
+	const captures = getCaptures({ row, col })
+	captures.forEach(capture => {
+		board[capture.row][capture.col] = undefined
 	})
 
 	return board
